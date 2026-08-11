@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
@@ -237,6 +238,107 @@ fun SensorScreen(
                 }
             }
 
+            // Bento View Switcher Tab (Meters vs Graphs)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .padding(4.dp)
+            ) {
+                // Meters Mode Button
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (!uiState.showGraph)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                            else
+                                Color.Transparent
+                        )
+                        .clickable { viewModel.setShowGraph(false) }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Speed,
+                            contentDescription = "Meters View",
+                            tint = if (!uiState.showGraph)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "METERS & NUMBERS",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            ),
+                            color = if (!uiState.showGraph)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+
+                // Graphs Mode Button
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (uiState.showGraph)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                            else
+                                Color.Transparent
+                        )
+                        .clickable { viewModel.setShowGraph(true) }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ShowChart,
+                            contentDescription = "Graphs View",
+                            tint = if (uiState.showGraph)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "REAL-TIME PLOTS",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            ),
+                            color = if (uiState.showGraph)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
+
             // Scrollable Content
             Column(
                 modifier = Modifier
@@ -407,7 +509,7 @@ fun SensorScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (uiState.showGraph) "Plots: Visible" else "Plots: Hidden",
+                                text = if (uiState.showGraph) "View: Graphs" else "View: Meters",
                                 color = if (uiState.showGraph)
                                     MaterialTheme.colorScheme.secondary
                                 else

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,6 +37,7 @@ fun RealtimeGraph(
     history: List<SensorData>,
     maxRange: Float,
     isGyro: Boolean,
+    unit: String,
     modifier: Modifier = Modifier
 ) {
     val axisXColor = Color(0xFFF43F5E) // Elegant Rose Red
@@ -168,6 +170,73 @@ fun RealtimeGraph(
                     drawPath(path = pathY, color = axisYColor, style = Stroke(width = 2.dp.toPx()))
                     drawPath(path = pathZ, color = axisZColor, style = Stroke(width = 2.dp.toPx()))
                 }
+            }
+
+            // Y-Axis labels overlay
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .padding(start = 6.dp, top = 4.dp, bottom = 4.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                val formattedMax = String.format(java.util.Locale.getDefault(), "%.1f", maxRange)
+                val formattedMid = String.format(java.util.Locale.getDefault(), "%.1f", maxRange / 2f)
+
+                Text(
+                    text = "+$formattedMax $unit",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                )
+                Text(
+                    text = "+$formattedMid",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 7.5.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                )
+                Text(
+                    text = "0.0",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 7.5.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                )
+                Text(
+                    text = "-$formattedMid",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 7.5.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                )
+                Text(
+                    text = "-$formattedMax $unit",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                )
             }
         }
 

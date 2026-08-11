@@ -145,75 +145,75 @@ fun SensorSection(
                     }
                 }
             } else {
-                // Digital display row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    DigitalValueCard(
-                        label = "X",
-                        value = displayX,
-                        peak = peakX,
-                        unit = displayUnit,
-                        accentColor = accentColor,
-                        modifier = Modifier.weight(1f)
-                    )
-                    DigitalValueCard(
-                        label = "Y",
-                        value = displayY,
-                        peak = peakY,
-                        unit = displayUnit,
-                        accentColor = accentColor,
-                        modifier = Modifier.weight(1f)
-                    )
-                    DigitalValueCard(
-                        label = "Z",
-                        value = displayZ,
-                        peak = peakZ,
-                        unit = displayUnit,
-                        accentColor = accentColor,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                if (!showGraph) {
+                    // Digital display row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        DigitalValueCard(
+                            label = "X",
+                            value = displayX,
+                            peak = peakX,
+                            unit = displayUnit,
+                            accentColor = accentColor,
+                            modifier = Modifier.weight(1f)
+                        )
+                        DigitalValueCard(
+                            label = "Y",
+                            value = displayY,
+                            peak = peakY,
+                            unit = displayUnit,
+                            accentColor = accentColor,
+                            modifier = Modifier.weight(1f)
+                        )
+                        DigitalValueCard(
+                            label = "Z",
+                            value = displayZ,
+                            peak = peakZ,
+                            unit = displayUnit,
+                            accentColor = accentColor,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Analog bars
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    AnalogBar(
-                        axisLabel = "X",
-                        value = displayX,
-                        maxRange = displayMaxRange,
-                        unit = displayUnit,
-                        positiveColor = accentColor,
-                        negativeColor = MaterialTheme.colorScheme.error
-                    )
-                    AnalogBar(
-                        axisLabel = "Y",
-                        value = displayY,
-                        maxRange = displayMaxRange,
-                        unit = displayUnit,
-                        positiveColor = accentColor,
-                        negativeColor = MaterialTheme.colorScheme.error
-                    )
-                    AnalogBar(
-                        axisLabel = "Z",
-                        value = displayZ,
-                        maxRange = displayMaxRange,
-                        unit = displayUnit,
-                        positiveColor = accentColor,
-                        negativeColor = MaterialTheme.colorScheme.error
-                    )
-                }
-
-                if (showGraph) {
                     Spacer(modifier = Modifier.height(16.dp))
+
+                    // Analog bars
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        AnalogBar(
+                            axisLabel = "X",
+                            value = displayX,
+                            maxRange = displayMaxRange,
+                            unit = displayUnit,
+                            positiveColor = accentColor,
+                            negativeColor = MaterialTheme.colorScheme.error
+                        )
+                        AnalogBar(
+                            axisLabel = "Y",
+                            value = displayY,
+                            maxRange = displayMaxRange,
+                            unit = displayUnit,
+                            positiveColor = accentColor,
+                            negativeColor = MaterialTheme.colorScheme.error
+                        )
+                        AnalogBar(
+                            axisLabel = "Z",
+                            value = displayZ,
+                            maxRange = displayMaxRange,
+                            unit = displayUnit,
+                            positiveColor = accentColor,
+                            negativeColor = MaterialTheme.colorScheme.error
+                        )
+                    }
+                } else {
                     RealtimeGraph(
                         history = displayHistory,
                         maxRange = displayMaxRange,
                         isGyro = title.contains("GYROSCOPE", ignoreCase = true),
+                        unit = displayUnit,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }

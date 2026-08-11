@@ -128,6 +128,10 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
         _uiState.update { it.copy(showGraph = !it.showGraph) }
     }
 
+    fun setShowGraph(show: Boolean) {
+        _uiState.update { it.copy(showGraph = show) }
+    }
+
     fun resetPeaks() {
         _uiState.update {
             it.copy(

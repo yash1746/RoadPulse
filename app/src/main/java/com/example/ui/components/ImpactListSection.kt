@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -457,6 +458,11 @@ private fun PlotCanvas(
 
     val radToDeg = 57.29578f
     val displayMaxRange = if (isGyro && useDegrees) maxRange * radToDeg else maxRange
+    val unit = if (isGyro) {
+        if (useDegrees) "°/s" else "rad/s"
+    } else {
+        "m/s²"
+    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Box(
@@ -526,6 +532,51 @@ private fun PlotCanvas(
                     drawPath(path = pathY, color = axisYColor, style = Stroke(width = 1.5.dp.toPx()))
                     drawPath(path = pathZ, color = axisZColor, style = Stroke(width = 1.5.dp.toPx()))
                 }
+            }
+
+            // Y-Axis labels overlay
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .padding(start = 6.dp, top = 4.dp, bottom = 4.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                val formattedMax = String.format(java.util.Locale.getDefault(), "%.1f", displayMaxRange)
+                val formattedMid = String.format(java.util.Locale.getDefault(), "%.1f", displayMaxRange / 2f)
+
+                Text(
+                    text = "+$formattedMax $unit",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 7.5.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(3.dp))
+                        .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                )
+                Text(
+                    text = "0.0",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 7.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(3.dp))
+                        .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                )
+                Text(
+                    text = "-$formattedMax $unit",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 7.5.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(3.dp))
+                        .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                )
             }
             
             // Trigger marker text
