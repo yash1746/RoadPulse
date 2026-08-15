@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
@@ -289,9 +290,19 @@ fun ImpactEventCard(
                 Color(0xFF2E7D32), // Dark Green
                 Icons.Default.ElectricBolt
             )
+            "Sudden Brake" -> Triple(
+                Color(0xFFFFE0B2), // Light Orange/Brown
+                Color(0xFFE65100), // Dark Orange
+                Icons.Default.Block
+            )
+            "Sudden Turn" -> Triple(
+                Color(0xFFE1F5FE), // Light Blue
+                Color(0xFF01579B), // Dark Blue
+                Icons.Default.Refresh
+            )
             else -> Triple(
-                Color(0xFFFFF8E1), // Light Yellow
-                Color(0xFFF57F17), // Dark Amber
+                Color(0xFFF5F5F5), // Light Gray
+                Color(0xFF616161), // Dark Gray
                 Icons.Default.ElectricBolt
             )
         }
@@ -303,16 +314,16 @@ fun ImpactEventCard(
             .border(
                 width = 1.dp,
                 color = if (isExpanded)
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                    badgeTextColor.copy(alpha = 0.5f)
                 else
-                    MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
+                    badgeTextColor.copy(alpha = 0.15f),
                 shape = RoundedCornerShape(18.dp)
             ),
         colors = CardDefaults.cardColors(
             containerColor = if (isExpanded)
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                badgeBgColor.copy(alpha = 0.40f)
             else
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f)
+                badgeBgColor.copy(alpha = 0.15f)
         ),
         shape = RoundedCornerShape(18.dp)
     ) {
@@ -383,13 +394,15 @@ fun ImpactEventCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
-                    if (event.isSuddenBrake || event.isSuddenTurn) {
+                    val showBrakeTag = event.isSuddenBrake && event.label != "Sudden Brake"
+                    val showTurnTag = event.isSuddenTurn && event.label != "Sudden Turn"
+                    if (showBrakeTag || showTurnTag) {
                         androidx.compose.foundation.layout.Row(
                             modifier = Modifier.padding(top = 4.dp),
                             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
-                            if (event.isSuddenBrake) {
+                            if (showBrakeTag) {
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
@@ -404,7 +417,7 @@ fun ImpactEventCard(
                                     )
                                 }
                             }
-                            if (event.isSuddenTurn) {
+                            if (showTurnTag) {
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
