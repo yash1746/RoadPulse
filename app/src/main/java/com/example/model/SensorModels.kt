@@ -12,7 +12,8 @@ data class ImpactEvent(
     val timestamp: Long, // System.currentTimeMillis()
     val peakMagnitude: Float,
     val accelData: List<SensorData>,
-    val gyroData: List<SensorData>
+    val gyroData: List<SensorData>,
+    val label: String = "General Shock"
 )
 
 data class SensorUiState(

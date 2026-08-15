@@ -154,13 +154,78 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
         }
     }
 
+    private fun classifyImpact(accelData: List<SensorData>): String {
+        if (accelData.isEmpty()) return "General Shock"
+
+        val baseline = 9.80665f
+        
+        // Find the absolute maximum deviation from gravity to locate the exact trigger center
+        var maxDevFromGravity = 0f
+        var triggerIndex = -1
+        for (i in accelData.indices) {
+            val p = accelData[i]
+            val mag = kotlin.math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
+            val dev = kotlin.math.abs(mag - baseline)
+            if (dev > maxDevFromGravity) {
+                maxDevFromGravity = dev
+                triggerIndex = i
+            }
+        }
+
+        if (triggerIndex == -1 || maxDevFromGravity < 3f) {
+            return "General Shock"
+        }
+
+        // Scan a window around the main trigger point (e.g., 30 samples before to 30 samples after)
+        val windowStart = (triggerIndex - 35).coerceAtLeast(0)
+        val windowEnd = (triggerIndex + 35).coerceAtMost(accelData.size - 1)
+
+        var maxPositiveDev = 0f
+        var maxPositiveIndex = -1
+        var maxNegativeDev = 0f // Negative deviation below gravity
+        var maxNegativeIndex = -1
+
+        for (i in windowStart..windowEnd) {
+            val p = accelData[i]
+            val mag = kotlin.math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
+            val dev = mag - baseline
+
+            if (dev > maxPositiveDev) {
+                maxPositiveDev = dev
+                maxPositiveIndex = i
+            }
+            if (dev < maxNegativeDev) {
+                maxNegativeDev = dev
+                maxNegativeIndex = i
+            }
+        }
+
+        // Check if both components are substantial
+        val sigThreshold = 2.5f
+        return if (maxPositiveDev > sigThreshold && maxNegativeDev < -sigThreshold) {
+            if (maxPositiveIndex < maxNegativeIndex) {
+                "Speed Breaker"
+            } else {
+                "Pothole"
+            }
+        } else if (maxPositiveDev > sigThreshold) {
+            "Speed Breaker"
+        } else if (maxNegativeDev < -sigThreshold) {
+            "Pothole"
+        } else {
+            "General Shock"
+        }
+    }
+
     private fun finalizeImpactEvent() {
+        val calculatedLabel = classifyImpact(activeAccelRecord)
         val newEvent = com.example.model.ImpactEvent(
             id = java.util.UUID.randomUUID().toString(),
             timestamp = System.currentTimeMillis(),
             peakMagnitude = peakMagnitudeDuringEvent,
             accelData = ArrayList(activeAccelRecord),
-            gyroData = ArrayList(activeGyroRecord)
+            gyroData = ArrayList(activeGyroRecord),
+            label = calculatedLabel
         )
         _uiState.update { currentState ->
             currentState.copy(

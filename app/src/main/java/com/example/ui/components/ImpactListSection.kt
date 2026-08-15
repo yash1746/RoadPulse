@@ -16,6 +16,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
@@ -274,6 +277,26 @@ fun ImpactEventCard(
 ) {
     var isExpanded by remember { mutableStateOf(false) }
 
+    val (badgeBgColor, badgeTextColor, iconType) = remember(event.label) {
+        when (event.label) {
+            "Pothole" -> Triple(
+                Color(0xFFFFEBEE), // Light Red
+                Color(0xFFC62828), // Dark Red
+                Icons.Default.WarningAmber
+            )
+            "Speed Breaker" -> Triple(
+                Color(0xFFE8F5E9), // Light Green
+                Color(0xFF2E7D32), // Dark Green
+                Icons.Default.ElectricBolt
+            )
+            else -> Triple(
+                Color(0xFFFFF8E1), // Light Yellow
+                Color(0xFFF57F17), // Dark Amber
+                Icons.Default.ElectricBolt
+            )
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -317,12 +340,40 @@ fun ImpactEventCard(
                     )
                 }
 
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Type Badge
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(badgeBgColor)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = iconType,
+                            contentDescription = event.label,
+                            tint = badgeTextColor,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = event.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = badgeTextColor,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.width(12.dp))
 
                 // Stats summary
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Pothole / Shock Triggered",
+                        text = "Impact Recorded",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -619,12 +670,6 @@ private fun PlotCanvas(
                                 offsetX = (offsetX + pan.x).coerceIn(-maxOffsetX, maxOffsetX)
                                 offsetY = (offsetY + pan.y).coerceIn(-maxOffsetY, maxOffsetY)
                             }
-                        }
-                        .graphicsLayer {
-                            scaleX = scale
-                            scaleY = scale
-                            translationX = offsetX
-                            translationY = offsetY
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -640,6 +685,9 @@ private fun PlotCanvas(
                         axisXColor = axisXColor,
                         axisYColor = axisYColor,
                         axisZColor = axisZColor,
+                        zoomScale = scale,
+                        panOffsetX = offsetX,
+                        panOffsetY = offsetY,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(260.dp)
@@ -677,11 +725,36 @@ private fun StaticGraphImage(
     axisXColor: Color,
     axisYColor: Color,
     axisZColor: Color,
+    zoomScale: Float = 1f,
+    panOffsetX: Float = 0f,
+    panOffsetY: Float = 0f,
     modifier: Modifier = Modifier
 ) {
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    val density = LocalDensity.current
 
-    Box(
+    // Dynamically calculate the step and labels depending on zoom scale
+    val step = remember(simpleMaxCeil, zoomScale) {
+        val virtualMax = (simpleMaxCeil / zoomScale).coerceAtLeast(1f)
+        if (virtualMax > 6f) {
+            (virtualMax / 4f).toInt().coerceAtLeast(1)
+        } else {
+            1
+        }
+    }
+
+    val labelValues = remember(simpleMaxCeil, step) {
+        val list = mutableListOf<Int>()
+        for (v in simpleMaxCeil downTo -simpleMaxCeil step step) {
+            list.add(v)
+        }
+        if (!list.contains(0)) {
+            list.add(0)
+        }
+        list.sortedDescending()
+    }
+
+    BoxWithConstraints(
         modifier = modifier
             .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(12.dp))
             .border(
@@ -691,34 +764,95 @@ private fun StaticGraphImage(
             )
             .padding(12.dp)
     ) {
+        val widthPx = with(density) { maxWidth.toPx() }
+        val heightPx = with(density) { maxHeight.toPx() }
+        val centerY = heightPx / 2f
+        val centerX = widthPx / 2f
+
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
                 .clipToBounds()
         ) {
-            val width = size.width
-            val height = size.height
-            val centerY = height / 2f
-
-            // Left vertical Y-axis line
+            // Left vertical Y-axis line (static horizontally)
+            val leftAxisX = 2.dp.toPx()
             drawLine(
-                color = onSurfaceColor.copy(alpha = 0.15f),
-                start = Offset(2.dp.toPx(), 0f),
-                end = Offset(2.dp.toPx(), height),
+                color = onSurfaceColor.copy(alpha = 0.2f),
+                start = Offset(leftAxisX, 0f),
+                end = Offset(leftAxisX, heightPx),
                 strokeWidth = 1.2.dp.toPx()
             )
 
-            // Horizontal center line
-            drawLine(
-                color = onSurfaceColor.copy(alpha = 0.1f),
-                start = Offset(0f, centerY),
-                end = Offset(width, centerY),
-                strokeWidth = 1.dp.toPx()
-            )
+            // Dynamic scale line sizes (stroke widths)
+            val majorTickWidth = (1.2.dp + 0.1.dp * (zoomScale - 1f).coerceIn(0f, 4f)).toPx()
+            val mediumTickWidth = (0.8.dp + 0.05.dp * (zoomScale - 1f).coerceIn(0f, 4f)).toPx()
+            val minorTickWidth = (0.6.dp + 0.03.dp * (zoomScale - 1f).coerceIn(0f, 4f)).toPx()
+
+            // Centimeter-style Ruler and Subdivision Ticks
+            val maxTenths = (simpleMaxCeil * 10).toInt()
+            for (t in -maxTenths..maxTenths) {
+                val value = t / 10f
+                if (value < -displayMaxRange || value > displayMaxRange) continue
+                
+                // Scale Y coordinates around the centerY viewport, shifted by panOffsetY
+                val screenY = centerY - ((value / displayMaxRange) * centerY) * zoomScale + panOffsetY
+                
+                if (screenY < 0f || screenY > heightPx) continue
+
+                if (t % 10 == 0) {
+                    // Whole "cm" marker - Draw a grid line across the width
+                    drawLine(
+                        color = onSurfaceColor.copy(alpha = 0.08f),
+                        start = Offset(leftAxisX, screenY),
+                        end = Offset(widthPx, screenY),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                    // Draw long ruler tick mark
+                    drawLine(
+                        color = onSurfaceColor.copy(alpha = 0.4f),
+                        start = Offset(leftAxisX, screenY),
+                        end = Offset(leftAxisX + 6.dp.toPx() * zoomScale.coerceIn(1f, 1.5f), screenY),
+                        strokeWidth = majorTickWidth
+                    )
+                } else if (t % 5 == 0) {
+                    // Half-unit "0.5cm" marker - Draw medium tick and faint line
+                    drawLine(
+                        color = onSurfaceColor.copy(alpha = 0.04f),
+                        start = Offset(leftAxisX, screenY),
+                        end = Offset(widthPx, screenY),
+                        strokeWidth = 0.75.dp.toPx()
+                    )
+                    drawLine(
+                        color = onSurfaceColor.copy(alpha = 0.25f),
+                        start = Offset(leftAxisX, screenY),
+                        end = Offset(leftAxisX + 4.dp.toPx() * zoomScale.coerceIn(1f, 1.5f), screenY),
+                        strokeWidth = mediumTickWidth
+                    )
+                } else {
+                    // "mm" marker - Draw short tick mark on the vertical ruler line
+                    drawLine(
+                        color = onSurfaceColor.copy(alpha = 0.15f),
+                        start = Offset(leftAxisX, screenY),
+                        end = Offset(leftAxisX + 2.dp.toPx() * zoomScale.coerceIn(1f, 1.5f), screenY),
+                        strokeWidth = minorTickWidth
+                    )
+                }
+            }
+
+            // Horizontal center line (moves with vertical pan)
+            val horizontalCenterY = centerY + panOffsetY
+            if (horizontalCenterY in 0f..heightPx) {
+                drawLine(
+                    color = onSurfaceColor.copy(alpha = 0.12f),
+                    start = Offset(0f, horizontalCenterY),
+                    end = Offset(widthPx, horizontalCenterY),
+                    strokeWidth = 1.2.dp.toPx()
+                )
+            }
 
             if (data.isNotEmpty()) {
                 val pointsCount = data.size
-                val segmentWidth = width / (pointsCount - 1).coerceAtLeast(1)
+                val segmentWidth = widthPx / (pointsCount - 1).coerceAtLeast(1)
 
                 val pathX = Path()
                 val pathY = Path()
@@ -730,12 +864,11 @@ private fun StaticGraphImage(
                     val yVal = (p.y * factor).coerceIn(-displayMaxRange, displayMaxRange)
                     val zVal = (p.z * factor).coerceIn(-displayMaxRange, displayMaxRange)
 
-                    // Normalize to display range
-                    val pyX = centerY - (xVal / displayMaxRange) * centerY
-                    val pyY = centerY - (yVal / displayMaxRange) * centerY
-                    val pyZ = centerY - (zVal / displayMaxRange) * centerY
-
-                    val px = index * segmentWidth
+                    // Normalize to display range, scaled by zoomScale around centerX/centerY, shifted by panOffsetX/Y
+                    val px = centerX + (index * segmentWidth - centerX) * zoomScale + panOffsetX
+                    val pyX = centerY - ((xVal / displayMaxRange) * centerY) * zoomScale + panOffsetY
+                    val pyY = centerY - ((yVal / displayMaxRange) * centerY) * zoomScale + panOffsetY
+                    val pyZ = centerY - ((zVal / displayMaxRange) * centerY) * zoomScale + panOffsetY
 
                     if (index == 0) {
                         pathX.moveTo(px, pyX)
@@ -748,65 +881,75 @@ private fun StaticGraphImage(
                     }
                 }
 
+                // Smooth stroke size adjustment
+                val curveStrokeWidth = (3.dp + (0.2.dp * (zoomScale - 1f).coerceIn(0f, 4f))).toPx()
+
                 // Draw curve lines nicely
                 drawPath(
                     path = pathX,
                     color = axisXColor,
-                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    style = Stroke(width = curveStrokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
                 )
                 drawPath(
                     path = pathY,
                     color = axisYColor,
-                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    style = Stroke(width = curveStrokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
                 )
                 drawPath(
                     path = pathZ,
                     color = axisZColor,
-                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    style = Stroke(width = curveStrokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
                 )
             }
         }
 
-        // Y-Axis labels overlay
-        Column(
+        // Y-Axis labels overlay - Positioned dynamically with vertical pan & zoom using our high-precision layout modifier!
+        Box(
             modifier = Modifier
-                .fillMaxHeight()
-                .padding(start = 6.dp, top = 6.dp, bottom = 6.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+                .fillMaxSize()
+                .padding(start = 6.dp, top = 6.dp, bottom = 6.dp)
         ) {
-            Text(
-                text = "+$simpleMaxCeil $unit",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 8.5.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                modifier = Modifier
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(3.dp))
-                    .padding(horizontal = 4.dp, vertical = 0.5.dp)
-            )
-            Text(
-                text = "0",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.ExtraBold
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(3.dp))
-                    .padding(horizontal = 4.dp, vertical = 0.5.dp)
-            )
-            Text(
-                text = "-$simpleMaxCeil $unit",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 8.5.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                modifier = Modifier
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(3.dp))
-                    .padding(horizontal = 4.dp, vertical = 0.5.dp)
-            )
+            // Determine left alignment position of the label block (static horizontally)
+            val labelLeftOffset = 6.dp
+
+            labelValues.forEach { valInt ->
+                val value = valInt.toFloat()
+                val screenY = centerY - ((value / displayMaxRange) * centerY) * zoomScale + panOffsetY
+
+                // Only show labels that are within the viewport bounds
+                if (screenY in 0f..heightPx) {
+                    val labelText = if (valInt > 0) "+$valInt" else valInt.toString()
+                    
+                    // Slightly scale text font sizes dynamically so they are beautiful and fully readable
+                    val baseFontSize = if (valInt == 0) 10.sp else 8.5.sp
+                    val dynamicFontSize = baseFontSize * (1f + 0.05f * (zoomScale - 1f).coerceIn(0f, 4f))
+
+                    Text(
+                        text = labelText,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = dynamicFontSize,
+                            fontWeight = if (valInt == 0) FontWeight.ExtraBold else FontWeight.Bold
+                        ),
+                        color = if (valInt == 0)
+                            MaterialTheme.colorScheme.onSurface
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        modifier = Modifier
+                            // Use our layout modifier to center the text box perfectly vertically around screenY
+                            .layout { measurable, constraints ->
+                                val placeable = measurable.measure(constraints)
+                                layout(placeable.width, placeable.height) {
+                                    val y = (screenY - placeable.height / 2f).toInt()
+                                    // Offset horizontally with panOffsetX so it stays aligned with the vertical ruler line!
+                                    val x = labelLeftOffset.toPx().toInt()
+                                    placeable.placeRelative(x, y)
+                                }
+                            }
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(3.dp))
+                            .padding(horizontal = 4.dp, vertical = 0.5.dp)
+                    )
+                }
+            }
         }
     }
 }
