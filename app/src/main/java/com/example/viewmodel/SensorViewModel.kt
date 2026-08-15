@@ -254,6 +254,36 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
         return SensorData(sumX / count, sumY / count, sumZ / count)
     }
 
+    private fun detectSuddenBrake(accelData: List<SensorData>): Boolean {
+        if (accelData.size < 5) return false
+        val g = getGravityDirection()
+        val gMag = kotlin.math.sqrt(g.x * g.x + g.y * g.y + g.z * g.z)
+        if (gMag < 0.1f) return false
+
+        for (p in accelData) {
+            val dot = p.x * g.x + p.y * g.y + p.z * g.z
+            val aVertical = dot / gMag
+            val totalMagSq = p.x * p.x + p.y * p.y + p.z * p.z
+            val hMagSq = (totalMagSq - aVertical * aVertical).coerceAtLeast(0f)
+            val aHorizontal = kotlin.math.sqrt(hMagSq)
+            if (aHorizontal > 3.8f) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun detectSuddenTurn(gyroData: List<SensorData>): Boolean {
+        if (gyroData.isEmpty()) return false
+        for (p in gyroData) {
+            val wMag = kotlin.math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
+            if (wMag > 2.6f) {
+                return true
+            }
+        }
+        return false
+    }
+
     private fun finalizePotholeOrBreaker() {
         val accelData = potholeBreakerChannel.accelRecord
         val calculatedLabel = classifyImpact(accelData)
@@ -265,6 +295,17 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             return
         }
 
+        val hasSuddenBrake = detectSuddenBrake(accelData)
+        val hasSuddenTurn = detectSuddenTurn(potholeBreakerChannel.gyroRecord)
+
+        // Reset concurrent/active channels to absorb/suppress duplicate cards
+        if (hasSuddenBrake) {
+            brakeChannel.reset()
+        }
+        if (hasSuddenTurn) {
+            turnChannel.reset()
+        }
+
         val newEvent = com.example.model.ImpactEvent(
             id = java.util.UUID.randomUUID().toString(),
             timestamp = System.currentTimeMillis(),
@@ -272,8 +313,8 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             accelData = ArrayList(accelData),
             gyroData = ArrayList(potholeBreakerChannel.gyroRecord),
             label = calculatedLabel,
-            isSuddenBrake = false,
-            isSuddenTurn = false
+            isSuddenBrake = hasSuddenBrake,
+            isSuddenTurn = hasSuddenTurn
         )
         addEventToUi(newEvent)
         potholeBreakerChannel.reset()
@@ -281,6 +322,17 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
     }
 
     private fun finalizeSuddenBrake() {
+        // If there is a Pothole or Speed Breaker recorded within 3.5 seconds or currently recording, ignore/suppress this standalone card
+        val recentPotholeOrBreaker = _uiState.value.detectedImpacts.any {
+            (it.label == "Pothole" || it.label == "Speed Breaker") &&
+            (System.currentTimeMillis() - it.timestamp < 3500L)
+        }
+        if (recentPotholeOrBreaker || potholeBreakerChannel.isRecording) {
+            brakeChannel.reset()
+            updateRecordingStateInUi()
+            return
+        }
+
         val newEvent = com.example.model.ImpactEvent(
             id = java.util.UUID.randomUUID().toString(),
             timestamp = System.currentTimeMillis(),
@@ -297,6 +349,17 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
     }
 
     private fun finalizeSuddenTurn() {
+        // If there is a Pothole or Speed Breaker recorded within 3.5 seconds or currently recording, ignore/suppress this standalone card
+        val recentPotholeOrBreaker = _uiState.value.detectedImpacts.any {
+            (it.label == "Pothole" || it.label == "Speed Breaker") &&
+            (System.currentTimeMillis() - it.timestamp < 3500L)
+        }
+        if (recentPotholeOrBreaker || potholeBreakerChannel.isRecording) {
+            turnChannel.reset()
+            updateRecordingStateInUi()
+            return
+        }
+
         val newEvent = com.example.model.ImpactEvent(
             id = java.util.UUID.randomUUID().toString(),
             timestamp = System.currentTimeMillis(),
@@ -433,7 +496,7 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
                     val hMagSq = (totalMagSq - aVertical * aVertical).coerceAtLeast(0f)
                     val aHorizontal = kotlin.math.sqrt(hMagSq)
 
-                    if (!brakeChannel.isRecording && aHorizontal > 2.4f &&
+                    if (!brakeChannel.isRecording && aHorizontal > 3.8f &&
                         (System.currentTimeMillis() - brakeChannel.lastTriggerTimeMs > COOLDOWN_MS)) {
                         
                         brakeChannel.trigger(
@@ -499,7 +562,7 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
                     }
 
                     // Trigger Channel 3: Sudden Turn
-                    if (!turnChannel.isRecording && wMag > 1.2f &&
+                    if (!turnChannel.isRecording && wMag > 2.6f &&
                         (System.currentTimeMillis() - turnChannel.lastTriggerTimeMs > COOLDOWN_MS)) {
                         
                         turnChannel.trigger(
