@@ -17,6 +17,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -29,11 +35,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -57,8 +72,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -452,9 +470,9 @@ private fun PlotCanvas(
     isGyro: Boolean,
     useDegrees: Boolean
 ) {
-    val axisXColor = Color(0xFFF43F5E) // Red
-    val axisYColor = Color(0xFF10B981) // Green
-    val axisZColor = Color(0xFF3B82F6) // Blue
+    val axisXColor = Color(0xFFC0504D) // Excel Red
+    val axisYColor = Color(0xFF9BBB59) // Excel Olive Green
+    val axisZColor = Color(0xFF4F81BD) // Excel Slate Blue
 
     val radToDeg = 57.29578f
     val displayMaxRange = if (isGyro && useDegrees) maxRange * radToDeg else maxRange
@@ -464,130 +482,55 @@ private fun PlotCanvas(
         "m/s²"
     }
 
+    // Keep units simple, rounded to nearest whole number
+    val simpleMaxCeil = kotlin.math.ceil(displayMaxRange).toInt().coerceAtLeast(1)
+
+    var isPhotoOpened by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxWidth()) {
+        // Main graph card that acts as a responsive preview button
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(110.dp)
-                .background(Color.Black.copy(alpha = 0.05f), shape = RoundedCornerShape(12.dp))
+                .height(145.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f))
                 .border(
-                    width = 0.5.dp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f),
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
                     shape = RoundedCornerShape(12.dp)
                 )
+                .clickable { isPhotoOpened = true }
         ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val width = size.width
-                val height = size.height
-                val centerY = height / 2f
-
-                // Horizontal center line
-                drawLine(
-                    color = Color.Gray.copy(alpha = 0.15f),
-                    start = Offset(0f, centerY),
-                    end = Offset(width, centerY),
-                    strokeWidth = 1.dp.toPx()
-                )
-
-                // Timeline mid divider (the exact spike point trigger at 2.0s mark)
-                drawLine(
-                    color = Color.Red.copy(alpha = 0.25f),
-                    start = Offset(width / 2f, 0f),
-                    end = Offset(width / 2f, height),
-                    strokeWidth = 1.5.dp.toPx()
-                )
-
-                if (data.isNotEmpty()) {
-                    val pointsCount = data.size
-                    val segmentWidth = width / (pointsCount - 1).coerceAtLeast(1)
-
-                    val pathX = Path()
-                    val pathY = Path()
-                    val pathZ = Path()
-
-                    data.forEachIndexed { index, p ->
-                        val factor = if (isGyro && useDegrees) radToDeg else 1f
-                        val xVal = (p.x * factor).coerceIn(-displayMaxRange, displayMaxRange)
-                        val yVal = (p.y * factor).coerceIn(-displayMaxRange, displayMaxRange)
-                        val zVal = (p.z * factor).coerceIn(-displayMaxRange, displayMaxRange)
-
-                        val pyX = centerY - (xVal / displayMaxRange) * centerY
-                        val pyY = centerY - (yVal / displayMaxRange) * centerY
-                        val pyZ = centerY - (zVal / displayMaxRange) * centerY
-
-                        val px = index * segmentWidth
-
-                        if (index == 0) {
-                            pathX.moveTo(px, pyX)
-                            pathY.moveTo(px, pyY)
-                            pathZ.moveTo(px, pyZ)
-                        } else {
-                            pathX.lineTo(px, pyX)
-                            pathY.lineTo(px, pyY)
-                            pathZ.lineTo(px, pyZ)
-                        }
-                    }
-
-                    drawPath(path = pathX, color = axisXColor, style = Stroke(width = 1.5.dp.toPx()))
-                    drawPath(path = pathY, color = axisYColor, style = Stroke(width = 1.5.dp.toPx()))
-                    drawPath(path = pathZ, color = axisZColor, style = Stroke(width = 1.5.dp.toPx()))
-                }
-            }
-
-            // Y-Axis labels overlay
-            Column(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .padding(start = 6.dp, top = 4.dp, bottom = 4.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                val formattedMax = String.format(java.util.Locale.getDefault(), "%.1f", displayMaxRange)
-                val formattedMid = String.format(java.util.Locale.getDefault(), "%.1f", displayMaxRange / 2f)
-
-                Text(
-                    text = "+$formattedMax $unit",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 7.5.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                    modifier = Modifier
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(3.dp))
-                        .padding(horizontal = 3.dp, vertical = 0.5.dp)
-                )
-                Text(
-                    text = "0.0",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 7.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(3.dp))
-                        .padding(horizontal = 3.dp, vertical = 0.5.dp)
-                )
-                Text(
-                    text = "-$formattedMax $unit",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 7.5.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                    modifier = Modifier
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f), RoundedCornerShape(3.dp))
-                        .padding(horizontal = 3.dp, vertical = 0.5.dp)
-                )
-            }
-            
-            // Trigger marker text
-            Text(
-                text = "SPIKE IMPACT",
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp, fontWeight = FontWeight.Bold),
-                color = Color.Red.copy(alpha = 0.5f),
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 4.dp)
+            // Render standard static graph
+            StaticGraphImage(
+                data = data,
+                displayMaxRange = displayMaxRange,
+                simpleMaxCeil = simpleMaxCeil,
+                unit = unit,
+                isGyro = isGyro,
+                useDegrees = useDegrees,
+                radToDeg = radToDeg,
+                axisXColor = axisXColor,
+                axisYColor = axisYColor,
+                axisZColor = axisZColor,
+                modifier = Modifier.fillMaxSize()
             )
+
+            // Prompt Badge overlaying the bottom center
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.85f), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "TAP TO ZOOM",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.ExtraBold),
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(6.dp))
@@ -602,6 +545,268 @@ private fun PlotCanvas(
             LegendDot(label = "Y", color = axisYColor)
             Spacer(modifier = Modifier.width(8.dp))
             LegendDot(label = "Z", color = axisZColor)
+        }
+    }
+
+    // Interactive Photo View Dialog
+    if (isPhotoOpened) {
+        Dialog(
+            onDismissRequest = { isPhotoOpened = false },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true
+            )
+        ) {
+            var scale by remember { mutableStateOf(1f) }
+            var offsetX by remember { mutableStateOf(0f) }
+            var offsetY by remember { mutableStateOf(0f) }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.98f))
+            ) {
+                // Header with dynamic zoom indicator
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(top = 24.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Graph Analysis",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = String.format(java.util.Locale.getDefault(), "Zoom: %.1fx (Pinch to scale)", scale),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { isPhotoOpened = false },
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f), CircleShape)
+                            .size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close Photo View",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Interactive 2D Zoomable image container
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 80.dp)
+                        .clipToBounds()
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                scale = (scale * zoom).coerceIn(1f, 8f)
+                                val extraWidth = (size.width * scale - size.width)
+                                val extraHeight = (size.height * scale - size.height)
+                                val maxOffsetX = (extraWidth / 2f).coerceAtLeast(0f)
+                                val maxOffsetY = (extraHeight / 2f).coerceAtLeast(0f)
+                                offsetX = (offsetX + pan.x).coerceIn(-maxOffsetX, maxOffsetX)
+                                offsetY = (offsetY + pan.y).coerceIn(-maxOffsetY, maxOffsetY)
+                            }
+                        }
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            translationX = offsetX
+                            translationY = offsetY
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Static high-fidelity graph rendering - does not change/replot when scaling!
+                    StaticGraphImage(
+                        data = data,
+                        displayMaxRange = displayMaxRange,
+                        simpleMaxCeil = simpleMaxCeil,
+                        unit = unit,
+                        isGyro = isGyro,
+                        useDegrees = useDegrees,
+                        radToDeg = radToDeg,
+                        axisXColor = axisXColor,
+                        axisYColor = axisYColor,
+                        axisZColor = axisZColor,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp)
+                    )
+                }
+
+                // Double finger instructions overlay at the bottom
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 36.dp)
+                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Use two fingers to Pinch & Zoom • Drag to Pan",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StaticGraphImage(
+    data: List<SensorData>,
+    displayMaxRange: Float,
+    simpleMaxCeil: Int,
+    unit: String,
+    isGyro: Boolean,
+    useDegrees: Boolean,
+    radToDeg: Float,
+    axisXColor: Color,
+    axisYColor: Color,
+    axisZColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+
+    Box(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(12.dp))
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(12.dp)
+    ) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .clipToBounds()
+        ) {
+            val width = size.width
+            val height = size.height
+            val centerY = height / 2f
+
+            // Left vertical Y-axis line
+            drawLine(
+                color = onSurfaceColor.copy(alpha = 0.15f),
+                start = Offset(2.dp.toPx(), 0f),
+                end = Offset(2.dp.toPx(), height),
+                strokeWidth = 1.2.dp.toPx()
+            )
+
+            // Horizontal center line
+            drawLine(
+                color = onSurfaceColor.copy(alpha = 0.1f),
+                start = Offset(0f, centerY),
+                end = Offset(width, centerY),
+                strokeWidth = 1.dp.toPx()
+            )
+
+            if (data.isNotEmpty()) {
+                val pointsCount = data.size
+                val segmentWidth = width / (pointsCount - 1).coerceAtLeast(1)
+
+                val pathX = Path()
+                val pathY = Path()
+                val pathZ = Path()
+
+                data.forEachIndexed { index, p ->
+                    val factor = if (isGyro && useDegrees) radToDeg else 1f
+                    val xVal = (p.x * factor).coerceIn(-displayMaxRange, displayMaxRange)
+                    val yVal = (p.y * factor).coerceIn(-displayMaxRange, displayMaxRange)
+                    val zVal = (p.z * factor).coerceIn(-displayMaxRange, displayMaxRange)
+
+                    // Normalize to display range
+                    val pyX = centerY - (xVal / displayMaxRange) * centerY
+                    val pyY = centerY - (yVal / displayMaxRange) * centerY
+                    val pyZ = centerY - (zVal / displayMaxRange) * centerY
+
+                    val px = index * segmentWidth
+
+                    if (index == 0) {
+                        pathX.moveTo(px, pyX)
+                        pathY.moveTo(px, pyY)
+                        pathZ.moveTo(px, pyZ)
+                    } else {
+                        pathX.lineTo(px, pyX)
+                        pathY.lineTo(px, pyY)
+                        pathZ.lineTo(px, pyZ)
+                    }
+                }
+
+                // Draw curve lines nicely
+                drawPath(
+                    path = pathX,
+                    color = axisXColor,
+                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                )
+                drawPath(
+                    path = pathY,
+                    color = axisYColor,
+                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                )
+                drawPath(
+                    path = pathZ,
+                    color = axisZColor,
+                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                )
+            }
+        }
+
+        // Y-Axis labels overlay
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(start = 6.dp, top = 6.dp, bottom = 6.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "+$simpleMaxCeil $unit",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(3.dp))
+                    .padding(horizontal = 4.dp, vertical = 0.5.dp)
+            )
+            Text(
+                text = "0",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(3.dp))
+                    .padding(horizontal = 4.dp, vertical = 0.5.dp)
+            )
+            Text(
+                text = "-$simpleMaxCeil $unit",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(3.dp))
+                    .padding(horizontal = 4.dp, vertical = 0.5.dp)
+            )
         }
     }
 }
