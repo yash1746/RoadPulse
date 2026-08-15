@@ -180,9 +180,37 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
     private fun classifyImpact(accelData: List<SensorData>): String {
         if (accelData.isEmpty()) return "General Shock"
 
-        val baseline = 9.80665f
-        
-        // Find the absolute maximum deviation from gravity to locate the exact trigger center
+        val g = getGravityDirection()
+        val gMag = kotlin.math.sqrt(g.x * g.x + g.y * g.y + g.z * g.z)
+        val baseline = if (gMag > 0.1f) gMag else 9.80665f
+
+        // Calculate peak horizontal deceleration and peak vertical deviation to identify heavy braking
+        var maxHorizontal = 0f
+        var maxVerticalDev = 0f
+
+        for (p in accelData) {
+            val dot = p.x * g.x + p.y * g.y + p.z * g.z
+            val aVertical = if (gMag > 0.1f) dot / gMag else p.z
+            val totalMagSq = p.x * p.x + p.y * p.y + p.z * p.z
+            val hMagSq = (totalMagSq - aVertical * aVertical).coerceAtLeast(0f)
+            val aHorizontal = kotlin.math.sqrt(hMagSq)
+
+            val vDev = kotlin.math.abs(aVertical - baseline)
+            if (vDev > maxVerticalDev) {
+                maxVerticalDev = vDev
+            }
+            if (aHorizontal > maxHorizontal) {
+                maxHorizontal = aHorizontal
+            }
+        }
+
+        // If the horizontal braking force is dominant over any vertical shock deviation,
+        // it is classified as a Sudden Brake rather than a false Speed Breaker from suspension nose-dive.
+        if (maxHorizontal > 3.8f && maxHorizontal > maxVerticalDev * 1.15f) {
+            return "Sudden Brake"
+        }
+
+        // Locate the trigger center for vertical profiling (Pothole / Speed Breaker)
         var maxDevFromGravity = 0f
         var triggerIndex = -1
         for (i in accelData.indices) {
@@ -199,7 +227,7 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             return "General Shock"
         }
 
-        // Scan a window around the main trigger point (e.g., 35 samples before to 35 samples after)
+        // Scan a window around the main trigger point (35 samples before to 35 samples after)
         val windowStart = (triggerIndex - 35).coerceAtLeast(0)
         val windowEnd = (triggerIndex + 35).coerceAtMost(accelData.size - 1)
 
@@ -295,8 +323,8 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             return
         }
 
-        val hasSuddenBrake = detectSuddenBrake(accelData)
-        val hasSuddenTurn = detectSuddenTurn(potholeBreakerChannel.gyroRecord)
+        val hasSuddenBrake = detectSuddenBrake(accelData) || calculatedLabel == "Sudden Brake"
+        val hasSuddenTurn = detectSuddenTurn(potholeBreakerChannel.gyroRecord) || calculatedLabel == "Sudden Turn"
 
         // Reset concurrent/active channels to absorb/suppress duplicate cards
         if (hasSuddenBrake) {
