@@ -217,15 +217,68 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
         }
     }
 
+    private fun detectSuddenBrake(accelData: List<SensorData>): Boolean {
+        if (accelData.size < 5) return false
+
+        // Calculate average gravity vector to establish dynamic baseline orientation
+        var sumX = 0f
+        var sumY = 0f
+        var sumZ = 0f
+        for (p in accelData) {
+            sumX += p.x
+            sumY += p.y
+            sumZ += p.z
+        }
+        val count = accelData.size.toFloat()
+        val gx = sumX / count
+        val gy = sumY / count
+        val gz = sumZ / count
+        val gMag = kotlin.math.sqrt(gx * gx + gy * gy + gz * gz)
+
+        if (gMag < 0.1f) return false
+
+        // A sudden brake causes a substantial horizontal force spike (typically > 2.2 m/s^2)
+        for (p in accelData) {
+            val dotProduct = p.x * gx + p.y * gy + p.z * gz
+            val aVertical = dotProduct / gMag
+            val totalMagSq = p.x * p.x + p.y * p.y + p.z * p.z
+            val hMagSq = (totalMagSq - aVertical * aVertical).coerceAtLeast(0f)
+            val aHorizontal = kotlin.math.sqrt(hMagSq)
+
+            if (aHorizontal > 2.2f) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun detectSuddenTurn(gyroData: List<SensorData>): Boolean {
+        if (gyroData.isEmpty()) return false
+
+        // A sudden turn or high-speed swerve spikes angular velocity (typically > 1.1 rad/s)
+        for (p in gyroData) {
+            val wMag = kotlin.math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
+            if (wMag > 1.1f) {
+                return true
+            }
+        }
+        return false
+    }
+
     private fun finalizeImpactEvent() {
         val calculatedLabel = classifyImpact(activeAccelRecord)
+        val hasSuddenBrake = detectSuddenBrake(activeAccelRecord)
+        val hasSuddenTurn = detectSuddenTurn(activeGyroRecord)
+
         val newEvent = com.example.model.ImpactEvent(
             id = java.util.UUID.randomUUID().toString(),
             timestamp = System.currentTimeMillis(),
             peakMagnitude = peakMagnitudeDuringEvent,
             accelData = ArrayList(activeAccelRecord),
             gyroData = ArrayList(activeGyroRecord),
-            label = calculatedLabel
+            label = calculatedLabel,
+            isSuddenBrake = hasSuddenBrake,
+            isSuddenTurn = hasSuddenTurn
         )
         _uiState.update { currentState ->
             currentState.copy(

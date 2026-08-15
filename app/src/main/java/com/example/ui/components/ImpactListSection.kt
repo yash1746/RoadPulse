@@ -383,6 +383,44 @@ fun ImpactEventCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
+                    if (event.isSuddenBrake || event.isSuddenTurn) {
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier.padding(top = 4.dp),
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            if (event.isSuddenBrake) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFFFFE0B2)) // Light Orange
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "Sudden Brake 🛑",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFE65100) // Dark Orange
+                                    )
+                                }
+                            }
+                            if (event.isSuddenTurn) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFFE1F5FE)) // Light Blue
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "Sudden Turn 🔄",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF01579B) // Dark Blue
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 IconButton(

@@ -13,7 +13,9 @@ data class ImpactEvent(
     val peakMagnitude: Float,
     val accelData: List<SensorData>,
     val gyroData: List<SensorData>,
-    val label: String = "General Shock"
+    val label: String = "General Shock",
+    val isSuddenBrake: Boolean = false,
+    val isSuddenTurn: Boolean = false
 )
 
 data class SensorUiState(
