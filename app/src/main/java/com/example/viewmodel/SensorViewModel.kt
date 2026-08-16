@@ -84,7 +84,14 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
         }
     }
 
-    fun startListening() {
+    fun startListening(userTriggered: Boolean = false) {
+        if (userTriggered) {
+            _uiState.update { it.copy(userWantsSensingEnabled = true) }
+        } else if (!_uiState.value.userWantsSensingEnabled) {
+            // Respect user manual override when app returns to foreground
+            return
+        }
+
         if (_uiState.value.isListening) return
 
         // Register accelerometer
@@ -119,7 +126,11 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
         }
     }
 
-    fun stopListening() {
+    fun stopListening(userTriggered: Boolean = false) {
+        if (userTriggered) {
+            _uiState.update { it.copy(userWantsSensingEnabled = false) }
+        }
+
         if (!_uiState.value.isListening) return
 
         sensorManager.unregisterListener(this)

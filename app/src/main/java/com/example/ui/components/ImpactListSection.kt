@@ -336,82 +336,57 @@ fun ImpactEventCard(
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Time Badge
+                // 1. Icon Badge (Circle container matching the custom event palette)
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = timeFormatted,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Type Badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .size(42.dp)
+                        .clip(CircleShape)
                         .background(badgeBgColor)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .padding(8.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = iconType,
-                            contentDescription = event.label,
-                            tint = badgeTextColor,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Text(
-                            text = event.label,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = badgeTextColor,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Icon(
+                        imageVector = iconType,
+                        contentDescription = event.label,
+                        tint = badgeTextColor,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Stats summary
-                Column(modifier = Modifier.weight(1f)) {
+                // 2. Center Info Block (Title, secondary tags, peak magnitude)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
                     Text(
-                        text = "Impact Recorded",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = event.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        letterSpacing = (-0.1).sp
                     )
-                    Text(
-                        text = "Peak: ${String.format(Locale.getDefault(), "%.2f", event.peakMagnitude)} m/s²",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                    )
+
+                    // Secondary Dynamic Tags Row
                     val showBrakeTag = event.isSuddenBrake && event.label != "Sudden Brake"
                     val showTurnTag = event.isSuddenTurn && event.label != "Sudden Turn"
                     if (showBrakeTag || showTurnTag) {
                         androidx.compose.foundation.layout.Row(
-                            modifier = Modifier.padding(top = 4.dp),
                             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(vertical = 1.dp)
                         ) {
                             if (showBrakeTag) {
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
                                         .background(Color(0xFFFFE0B2)) // Light Orange
-                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = "Sudden Brake 🛑",
-                                        fontSize = 9.sp,
+                                        text = "Braking 🛑",
+                                        fontSize = 8.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFFE65100) // Dark Orange
                                     )
@@ -422,11 +397,11 @@ fun ImpactEventCard(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
                                         .background(Color(0xFFE1F5FE)) // Light Blue
-                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = "Sudden Turn 🔄",
-                                        fontSize = 9.sp,
+                                        text = "Turning 🔄",
+                                        fontSize = 8.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF01579B) // Dark Blue
                                     )
@@ -434,16 +409,35 @@ fun ImpactEventCard(
                             }
                         }
                     }
+
+                    Text(
+                        text = "Peak: ${String.format(Locale.getDefault(), "%.2f", event.peakMagnitude)} m/s²",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
                 }
 
-                IconButton(
-                    onClick = { isExpanded = !isExpanded },
-                    modifier = Modifier.size(24.dp)
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // 3. Right Metadata Column (Time, Chevron indicator)
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    // Time text
+                    Text(
+                        text = timeFormatted,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    // Compact chevron Icon
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
                         contentDescription = "Expand details",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }

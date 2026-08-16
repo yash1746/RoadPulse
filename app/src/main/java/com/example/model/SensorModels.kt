@@ -34,6 +34,7 @@ data class SensorUiState(
     val accelHistory: List<SensorData> = emptyList(),
     val gyroHistory: List<SensorData> = emptyList(),
     val detectedImpacts: List<ImpactEvent> = emptyList(),
-    val isRecordingImpact: Boolean = false
+    val isRecordingImpact: Boolean = false,
+    val userWantsSensingEnabled: Boolean = true
 )
 

@@ -65,7 +65,7 @@ fun SensorScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Foreground-only sensing: register on ON_RESUME, unregister on ON_PAUSE
+    // Continuous/Background sensing: keep registered unless user explicitly clicks STOP
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -73,7 +73,7 @@ fun SensorScreen(
                     viewModel.startListening()
                 }
                 Lifecycle.Event.ON_PAUSE -> {
-                    viewModel.stopListening()
+                    // Keep listening in background when user moves away or turns off screen
                 }
                 else -> {}
             }
@@ -81,7 +81,6 @@ fun SensorScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            viewModel.stopListening()
         }
     }
 
@@ -135,25 +134,60 @@ fun SensorScreen(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Bento Pause Button
-                Button(
-                    onClick = { viewModel.togglePause() },
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.onBackground,
-                        contentColor = MaterialTheme.colorScheme.background
-                    ),
-                    contentPadding = ButtonDefaults.ContentPadding,
-                    modifier = Modifier
-                        .height(42.dp)
-                        .testTag("pause_button")
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (uiState.isPaused) "RESUME" else "PAUSE",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
-                    )
+                    // Manual Start/Stop Toggle
+                    Button(
+                        onClick = {
+                            if (uiState.isListening) {
+                                viewModel.stopListening(userTriggered = true)
+                            } else {
+                                viewModel.startListening(userTriggered = true)
+                            }
+                        },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (uiState.isListening) 
+                                MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
+                            else 
+                                MaterialTheme.colorScheme.primary,
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier
+                            .height(42.dp)
+                            .testTag("listening_toggle_button")
+                    ) {
+                        Text(
+                            text = if (uiState.isListening) "STOP SENSORS" else "START SENSORS",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+
+                    // Bento Pause Button (only visible/interactable when sensors are actively listening)
+                    if (uiState.isListening) {
+                        Button(
+                            onClick = { viewModel.togglePause() },
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.onBackground,
+                                contentColor = MaterialTheme.colorScheme.background
+                            ),
+                            modifier = Modifier
+                                .height(42.dp)
+                                .testTag("pause_button")
+                        ) {
+                            Text(
+                                text = if (uiState.isPaused) "RESUME" else "PAUSE",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
                 }
             }
         }
