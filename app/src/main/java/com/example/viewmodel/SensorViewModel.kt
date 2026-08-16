@@ -69,7 +69,6 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
 
     private val potholeBreakerChannel = RecordingChannel("PotholeOrBreaker")
     private val brakeChannel = RecordingChannel("Sudden Brake")
-    private val turnChannel = RecordingChannel("Sudden Turn")
 
     private val COOLDOWN_MS = 4000L // 4 seconds cooldown per channel to avoid redundant triggers
     private val SPIKE_THRESHOLD_DIFF_GRAVITY = 3.2f // Sensitive threshold deviation for Pothole/Breaker (from standard gravity 9.81)
@@ -184,7 +183,6 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             rollingGyro.clear()
             potholeBreakerChannel.reset()
             brakeChannel.reset()
-            turnChannel.reset()
         }
     }
 
@@ -199,6 +197,8 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
         var maxHorizontal = 0f
         var maxVerticalDev = 0f
 
+        val devList = ArrayList<Float>(accelData.size)
+
         for (p in accelData) {
             val dot = p.x * g.x + p.y * g.y + p.z * g.z
             val aVertical = if (gMag > 0.1f) dot / gMag else p.z
@@ -206,9 +206,11 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             val hMagSq = (totalMagSq - aVertical * aVertical).coerceAtLeast(0f)
             val aHorizontal = kotlin.math.sqrt(hMagSq)
 
-            val vDev = kotlin.math.abs(aVertical - baseline)
-            if (vDev > maxVerticalDev) {
-                maxVerticalDev = vDev
+            val absVDev = kotlin.math.abs(aVertical - baseline)
+            devList.add(absVDev)
+
+            if (absVDev > maxVerticalDev) {
+                maxVerticalDev = absVDev
             }
             if (aHorizontal > maxHorizontal) {
                 maxHorizontal = aHorizontal
@@ -221,13 +223,40 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             return "Sudden Brake"
         }
 
+        // Count distinct peaks (reversing or peak spikes) above a threshold to detect "Uneven Road"
+        var spikeCount = 0
+        var lastSpikeIndex = -1
+        val minSpikeDistance = 12 // ~120ms separation between distinct spikes
+        val spikeThreshold = 1.6f
+
+        for (i in 1 until devList.size - 1) {
+            val dev = devList[i]
+            if (dev > spikeThreshold && dev > devList[i - 1] && dev > devList[i + 1]) {
+                if (lastSpikeIndex == -1 || (i - lastSpikeIndex) >= minSpikeDistance) {
+                    spikeCount++
+                    lastSpikeIndex = i
+                }
+            }
+        }
+
+        // Adaptive Mathematical Model: Calculate Mean Absolute Deviation (MAD) of the vertical deviations
+        val meanAbsoluteDeviation = if (devList.isNotEmpty()) devList.average().toFloat() else 0f
+        val peakToAverageRatio = if (meanAbsoluteDeviation > 0.05f) maxVerticalDev / meanAbsoluteDeviation else 1f
+
+        // If there are multiple frequent spikes AND the overall background road profile is highly uneven and rough
+        // (Mean Absolute Deviation is high) and no single isolated peak completely dwarfs the continuous background (peak-to-average is low),
+        // we classify it as a continuous "Uneven Road".
+        // However, if there are only few vertical spikes, OR if there's a huge dominant peak rising suddenly out of the baseline
+        // (peak-to-average ratio >= 2.2), it means we have a single, clean pothole or speed breaker impact.
+        if (spikeCount >= 3 && meanAbsoluteDeviation > 0.75f && peakToAverageRatio < 2.2f) {
+            return "Uneven Road"
+        }
+
         // Locate the trigger center for vertical profiling (Pothole / Speed Breaker)
         var maxDevFromGravity = 0f
         var triggerIndex = -1
         for (i in accelData.indices) {
-            val p = accelData[i]
-            val mag = kotlin.math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
-            val dev = kotlin.math.abs(mag - baseline)
+            val dev = devList[i]
             if (dev > maxDevFromGravity) {
                 maxDevFromGravity = dev
                 triggerIndex = i
@@ -312,39 +341,24 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
         return false
     }
 
-    private fun detectSuddenTurn(gyroData: List<SensorData>): Boolean {
-        if (gyroData.isEmpty()) return false
-        for (p in gyroData) {
-            val wMag = kotlin.math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
-            if (wMag > 2.6f) {
-                return true
-            }
-        }
-        return false
-    }
-
     private fun finalizePotholeOrBreaker() {
         val accelData = potholeBreakerChannel.accelRecord
         val calculatedLabel = classifyImpact(accelData)
-
+ 
         // If it is classified as General Shock, discard it and do not record it!
         if (calculatedLabel == "General Shock") {
             potholeBreakerChannel.reset()
             updateRecordingStateInUi()
             return
         }
-
+ 
         val hasSuddenBrake = detectSuddenBrake(accelData) || calculatedLabel == "Sudden Brake"
-        val hasSuddenTurn = detectSuddenTurn(potholeBreakerChannel.gyroRecord) || calculatedLabel == "Sudden Turn"
-
+ 
         // Reset concurrent/active channels to absorb/suppress duplicate cards
         if (hasSuddenBrake) {
             brakeChannel.reset()
         }
-        if (hasSuddenTurn) {
-            turnChannel.reset()
-        }
-
+ 
         val newEvent = com.example.model.ImpactEvent(
             id = java.util.UUID.randomUUID().toString(),
             timestamp = System.currentTimeMillis(),
@@ -353,13 +367,13 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             gyroData = ArrayList(potholeBreakerChannel.gyroRecord),
             label = calculatedLabel,
             isSuddenBrake = hasSuddenBrake,
-            isSuddenTurn = hasSuddenTurn
+            isSuddenTurn = false
         )
         addEventToUi(newEvent)
         potholeBreakerChannel.reset()
         updateRecordingStateInUi()
     }
-
+ 
     private fun finalizeSuddenBrake() {
         // If there is a Pothole or Speed Breaker recorded within 3.5 seconds or currently recording, ignore/suppress this standalone card
         val recentPotholeOrBreaker = _uiState.value.detectedImpacts.any {
@@ -371,7 +385,7 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             updateRecordingStateInUi()
             return
         }
-
+ 
         val newEvent = com.example.model.ImpactEvent(
             id = java.util.UUID.randomUUID().toString(),
             timestamp = System.currentTimeMillis(),
@@ -386,34 +400,7 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
         brakeChannel.reset()
         updateRecordingStateInUi()
     }
-
-    private fun finalizeSuddenTurn() {
-        // If there is a Pothole or Speed Breaker recorded within 3.5 seconds or currently recording, ignore/suppress this standalone card
-        val recentPotholeOrBreaker = _uiState.value.detectedImpacts.any {
-            (it.label == "Pothole" || it.label == "Speed Breaker") &&
-            (System.currentTimeMillis() - it.timestamp < 3500L)
-        }
-        if (recentPotholeOrBreaker || potholeBreakerChannel.isRecording) {
-            turnChannel.reset()
-            updateRecordingStateInUi()
-            return
-        }
-
-        val newEvent = com.example.model.ImpactEvent(
-            id = java.util.UUID.randomUUID().toString(),
-            timestamp = System.currentTimeMillis(),
-            peakMagnitude = turnChannel.peakMagnitude,
-            accelData = ArrayList(turnChannel.accelRecord),
-            gyroData = ArrayList(turnChannel.gyroRecord),
-            label = "Sudden Turn",
-            isSuddenBrake = false,
-            isSuddenTurn = true
-        )
-        addEventToUi(newEvent)
-        turnChannel.reset()
-        updateRecordingStateInUi()
-    }
-
+ 
     private fun addEventToUi(event: com.example.model.ImpactEvent) {
         _uiState.update { currentState ->
             currentState.copy(
@@ -421,9 +408,9 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             )
         }
     }
-
+ 
     private fun updateRecordingStateInUi() {
-        val anyRecording = potholeBreakerChannel.isRecording || brakeChannel.isRecording || turnChannel.isRecording
+        val anyRecording = potholeBreakerChannel.isRecording || brakeChannel.isRecording
         _uiState.update { it.copy(isRecordingImpact = anyRecording) }
     }
 
@@ -494,12 +481,6 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
                             brakeChannel.peakMagnitude = rawMagnitude
                         }
                     }
-                    if (turnChannel.isRecording) {
-                        turnChannel.accelRecord.add(newData)
-                        if (rawMagnitude > turnChannel.peakMagnitude) {
-                            turnChannel.peakMagnitude = rawMagnitude
-                        }
-                    }
 
                     // Check for elapsed recording durations (2.0 seconds post-trigger)
                     if (potholeBreakerChannel.isRecording && event.timestamp >= potholeBreakerChannel.triggerSensorTimestamp + 2_000_000_000L) {
@@ -507,9 +488,6 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
                     }
                     if (brakeChannel.isRecording && event.timestamp >= brakeChannel.triggerSensorTimestamp + 2_000_000_000L) {
                         finalizeSuddenBrake()
-                    }
-                    if (turnChannel.isRecording && event.timestamp >= turnChannel.triggerSensorTimestamp + 2_000_000_000L) {
-                        finalizeSuddenTurn()
                     }
 
                     // Trigger Channel 1: Pothole / Speed Breaker
@@ -582,7 +560,6 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
                 }
 
                 // Independent Gyroscope Triggers & Logging
-                val wMag = kotlin.math.sqrt(rawX * rawX + rawY * rawY + rawZ * rawZ)
                 synchronized(this) {
                     rollingGyro.addLast(newData)
                     if (rollingGyro.size > 100) {
@@ -595,22 +572,6 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
                     }
                     if (brakeChannel.isRecording) {
                         brakeChannel.gyroRecord.add(newData)
-                    }
-                    if (turnChannel.isRecording) {
-                        turnChannel.gyroRecord.add(newData)
-                    }
-
-                    // Trigger Channel 3: Sudden Turn
-                    if (!turnChannel.isRecording && wMag > 2.6f &&
-                        (System.currentTimeMillis() - turnChannel.lastTriggerTimeMs > COOLDOWN_MS)) {
-                        
-                        turnChannel.trigger(
-                            event.timestamp,
-                            ArrayList(rollingAccel),
-                            ArrayList(rollingGyro),
-                            9.80665f // baseline default magnitude
-                        )
-                        updateRecordingStateInUi()
                     }
                 }
             }

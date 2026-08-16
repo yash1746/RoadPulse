@@ -295,9 +295,9 @@ fun ImpactEventCard(
                 Color(0xFFE65100), // Dark Orange
                 Icons.Default.Block
             )
-            "Sudden Turn" -> Triple(
-                Color(0xFFE1F5FE), // Light Blue
-                Color(0xFF01579B), // Dark Blue
+            "Uneven Road" -> Triple(
+                Color(0xFFF3E5F5), // Light Purple
+                Color(0xFF7B1FA2), // Dark Purple
                 Icons.Default.Refresh
             )
             else -> Triple(
