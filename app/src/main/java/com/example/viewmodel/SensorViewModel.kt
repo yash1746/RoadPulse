@@ -291,13 +291,41 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             }
         }
 
+        // Analyze the onset phase leading up to the trigger index (up to 18 samples, ~180ms before)
+        // This avoids misclassification on consecutive/series speed breakers
+        val onsetStart = (triggerIndex - 18).coerceAtLeast(0)
+        var preTriggerNegativeCount = 0
+        var preTriggerPositiveCount = 0
+        var preTriggerSumDev = 0f
+
+        for (i in onsetStart until triggerIndex) {
+            val p = accelData[i]
+            val mag = kotlin.math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
+            val dev = mag - baseline
+            preTriggerSumDev += dev
+            if (dev < -0.8f) {
+                preTriggerNegativeCount++
+            } else if (dev > 0.8f) {
+                preTriggerPositiveCount++
+            }
+        }
+
+        val isInitialDrop = preTriggerSumDev < -1.2f || (preTriggerNegativeCount > preTriggerPositiveCount && preTriggerNegativeCount >= 2)
+        val isInitialClimb = preTriggerSumDev > 1.2f || (preTriggerPositiveCount > preTriggerNegativeCount && preTriggerPositiveCount >= 2)
+
         // Check if both components are substantial
         val sigThreshold = 2.0f
         return if (maxPositiveDev > sigThreshold && maxNegativeDev < -sigThreshold) {
-            if (maxPositiveIndex < maxNegativeIndex) {
+            if (isInitialDrop) {
+                "Pothole"
+            } else if (isInitialClimb) {
                 "Speed Breaker"
             } else {
-                "Pothole"
+                if (maxPositiveIndex < maxNegativeIndex) {
+                    "Speed Breaker"
+                } else {
+                    "Pothole"
+                }
             }
         } else if (maxPositiveDev > sigThreshold) {
             "Speed Breaker"
