@@ -1,0 +1,6 @@
+{
+  "name": "Sensor Viewer",
+  "description": "Real-time accelerometer and gyroscope data viewer with digital and analog displays.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
