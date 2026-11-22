@@ -26,20 +26,28 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -94,6 +102,8 @@ fun SensorScreen(
         }
     }
 
+    var selectedNavTab by remember { mutableIntStateOf(0) }
+
     // Dynamic green pulse dot for live status
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
@@ -109,61 +119,50 @@ fun SensorScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
-            // Bento Grid footer design
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.background)
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)
-                    )
-                    .padding(horizontal = 24.dp, vertical = 16.dp)
-                    .testTag("bottom_status_bar"),
-                verticalAlignment = Alignment.CenterVertically
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
             ) {
-                Column {
-                    Text(
-                        text = "BACKGROUND MONITORING",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.5.sp,
-                            fontSize = 10.sp
+                NavigationBarItem(
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Speed,
+                            contentDescription = "Sensors"
                         )
-                    )
-                    Text(
-                        text = "Continuous Detection",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 12.sp
-                        )
-                    )
-                }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                // Bento Pause Button
-                Button(
-                    onClick = { viewModel.togglePause() },
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.onBackground,
-                        contentColor = MaterialTheme.colorScheme.background
-                    ),
-                    contentPadding = ButtonDefaults.ContentPadding,
-                    modifier = Modifier
-                        .height(42.dp)
-                        .testTag("pause_button")
-                ) {
-                    Text(
-                        text = if (uiState.isPaused) "RESUME" else "PAUSE",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
-                    )
-                }
+                    },
+                    label = { Text("Sensors") },
+                    selected = selectedNavTab == 0,
+                    onClick = { selectedNavTab = 0 }
+                )
+                NavigationBarItem(
+                    icon = {
+                        if (uiState.detectedImpacts.isNotEmpty()) {
+                            BadgedBox(
+                                badge = {
+                                    Badge(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = Color.White
+                                    ) {
+                                        Text(uiState.detectedImpacts.size.toString())
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Map,
+                                    contentDescription = "Hazard Map"
+                                )
+                            }
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Map,
+                                contentDescription = "Hazard Map"
+                            )
+                        }
+                    },
+                    label = { Text("Hazard Map") },
+                    selected = selectedNavTab == 1,
+                    onClick = { selectedNavTab = 1 }
+                )
             }
         }
     ) { innerPadding ->
@@ -177,7 +176,7 @@ fun SensorScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
@@ -220,6 +219,35 @@ fun SensorScreen(
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
+
+                // Pause / Resume Button
+                Button(
+                    onClick = { viewModel.togglePause() },
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (uiState.isPaused)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (uiState.isPaused)
+                            MaterialTheme.colorScheme.onPrimary
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                    modifier = Modifier
+                        .height(34.dp)
+                        .testTag("pause_button")
+                ) {
+                    Text(
+                        text = if (uiState.isPaused) "RESUME" else "PAUSE",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
 
                 // Dynamic live status badge
                 Row(
@@ -267,225 +295,40 @@ fun SensorScreen(
                 }
             }
 
-            TelemetrySourceCard(
-                uiState = uiState,
-                onSourceSelected = { source -> viewModel.setSensorSource(source) }
-            )
+            // Tab 0: SENSORS VIEW
+            if (selectedNavTab == 0) {
+                TelemetrySourceCard(
+                    uiState = uiState,
+                    onSourceSelected = { source -> viewModel.setSensorSource(source) }
+                )
 
-            // Bento View Switcher Tab (Meters vs Graphs)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    .padding(4.dp)
-            ) {
-                // Meters Mode Button
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            if (!uiState.showGraph)
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                            else
-                                Color.Transparent
-                        )
-                        .clickable { viewModel.setShowGraph(false) }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Speed,
-                            contentDescription = "Meters View",
-                            tint = if (!uiState.showGraph)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "METERS & NUMBERS",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = if (!uiState.showGraph)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-
-                // Graphs Mode Button
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            if (uiState.showGraph)
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                            else
-                                Color.Transparent
-                        )
-                        .clickable { viewModel.setShowGraph(true) }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ShowChart,
-                            contentDescription = "Graphs View",
-                            tint = if (uiState.showGraph)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "REAL-TIME PLOTS",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = if (uiState.showGraph)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-            }
-
-            // Scrollable Content
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-            ) {
-                // Info Banner
+                // Bento View Switcher Tab (Meters vs Graphs)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .padding(4.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "Info",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Viewing high-frequency sensor streams utilizing SENSOR_DELAY_GAME standard (~50 Hz updates).",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // ACCELEROMETER SECTION
-                SensorSection(
-                    title = "ACCELEROMETER",
-                    isAvailable = uiState.accelAvailable || uiState.sensorSource == "WebSocket Simulator",
-                    sensorData = uiState.accelerometer,
-                    peakData = uiState.accelPeak,
-                    unit = "m/s²",
-                    maxRange = 20f,
-                    accentColor = MaterialTheme.colorScheme.primary,
-                    showGraph = uiState.showGraph,
-                    history = uiState.accelHistory
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // GYROSCOPE SECTION
-                SensorSection(
-                    title = "GYROSCOPE",
-                    isAvailable = uiState.gyroAvailable || uiState.sensorSource == "WebSocket Simulator",
-                    sensorData = uiState.gyroscope,
-                    peakData = uiState.gyroPeak,
-                    unit = "rad/s",
-                    maxRange = 10f,
-                    accentColor = MaterialTheme.colorScheme.secondary,
-                    useDegrees = uiState.useDegreesPerSecond,
-                    showGraph = uiState.showGraph,
-                    history = uiState.gyroHistory
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // ROAD HAZARD MAP SECTION (Leaflet)
-                HazardMapView(
-                    impacts = uiState.detectedImpacts,
-                    initialLat = uiState.currentLatitude,
-                    initialLng = uiState.currentLongitude,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // DETECTED IMPACTS SECTION
-                ImpactListSection(
-                    impacts = uiState.detectedImpacts,
-                    isRecording = uiState.isRecordingImpact,
-                    onClearAll = { viewModel.clearImpacts() },
-                    useDegrees = uiState.useDegreesPerSecond,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Stabilization & Graph Toggle Bento Row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // Stabilization Toggle Bento Card
+                    // Meters Mode Button
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(20.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .background(
-                                if (uiState.isStabilized)
+                                if (!uiState.showGraph)
                                     MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                                 else
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    Color.Transparent
                             )
-                            .border(
-                                width = 1.dp,
-                                color = if (uiState.isStabilized)
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                                else
-                                    Color.Transparent,
-                                shape = RoundedCornerShape(20.dp)
-                            )
-                            .clickable { viewModel.toggleStabilization() }
-                            .padding(14.dp),
+                            .clickable { viewModel.setShowGraph(false) }
+                            .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(
@@ -493,49 +336,42 @@ fun SensorScreen(
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Tune,
-                                contentDescription = "Stabilization Filter",
-                                tint = if (uiState.isStabilized)
+                                imageVector = Icons.Default.Speed,
+                                contentDescription = "Meters View",
+                                tint = if (!uiState.showGraph)
                                     MaterialTheme.colorScheme.primary
                                 else
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (uiState.isStabilized) "Filtered: ON" else "Filter: OFF",
-                                color = if (uiState.isStabilized)
+                                text = "METERS & NUMBERS",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                ),
+                                color = if (!uiState.showGraph)
                                     MaterialTheme.colorScheme.primary
                                 else
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
                         }
                     }
 
-                    // Show Graph Toggle Bento Card
+                    // Graphs Mode Button
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(20.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .background(
                                 if (uiState.showGraph)
-                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f)
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                                 else
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    Color.Transparent
                             )
-                            .border(
-                                width = 1.dp,
-                                color = if (uiState.showGraph)
-                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
-                                else
-                                    Color.Transparent,
-                                shape = RoundedCornerShape(20.dp)
-                            )
-                            .clickable { viewModel.toggleShowGraph() }
-                            .padding(14.dp),
+                            .clickable { viewModel.setShowGraph(true) }
+                            .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(
@@ -544,74 +380,120 @@ fun SensorScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ShowChart,
-                                contentDescription = "Toggle Graphs",
+                                contentDescription = "Graphs View",
                                 tint = if (uiState.showGraph)
-                                    MaterialTheme.colorScheme.secondary
+                                    MaterialTheme.colorScheme.primary
                                 else
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (uiState.showGraph) "View: Graphs" else "View: Meters",
+                                text = "REAL-TIME PLOTS",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                ),
                                 color = if (uiState.showGraph)
-                                    MaterialTheme.colorScheme.secondary
+                                    MaterialTheme.colorScheme.primary
                                 else
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
                         }
                     }
                 }
 
-                // Accessory bento row for Peaks Reset & Unit Switcher
-                Row(
+                // Scrollable Sensors Content
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp)
                 ) {
-                    // Reset Peaks Bento Card
-                    Box(
+                    // Info Banner
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                            .clickable { viewModel.resetPeaks() }
-                            .padding(14.dp),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Reset Peaks",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Reset Peaks",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Info",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Viewing high-frequency sensor streams utilizing SENSOR_DELAY_GAME standard (~50 Hz updates).",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            modifier = Modifier.weight(1f)
+                        )
                     }
 
-                    // Toggle Units Bento Card
-                    if (uiState.gyroAvailable) {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // ACCELEROMETER SECTION
+                    SensorSection(
+                        title = "ACCELEROMETER",
+                        isAvailable = uiState.accelAvailable || uiState.sensorSource == "WebSocket Simulator",
+                        sensorData = uiState.accelerometer,
+                        peakData = uiState.accelPeak,
+                        unit = "m/s²",
+                        maxRange = 20f,
+                        accentColor = MaterialTheme.colorScheme.primary,
+                        showGraph = uiState.showGraph,
+                        history = uiState.accelHistory
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // GYROSCOPE SECTION
+                    SensorSection(
+                        title = "GYROSCOPE",
+                        isAvailable = uiState.gyroAvailable || uiState.sensorSource == "WebSocket Simulator",
+                        sensorData = uiState.gyroscope,
+                        peakData = uiState.gyroPeak,
+                        unit = "rad/s",
+                        maxRange = 10f,
+                        accentColor = MaterialTheme.colorScheme.secondary,
+                        useDegrees = uiState.useDegreesPerSecond,
+                        showGraph = uiState.showGraph,
+                        history = uiState.gyroHistory
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Stabilization & Graph Toggle Bento Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Stabilization Toggle Bento Card
                         Box(
                             modifier = Modifier
-                                .weight(1.2f)
+                                .weight(1f)
                                 .clip(RoundedCornerShape(20.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                                .clickable { viewModel.toggleGyroUnit() }
+                                .background(
+                                    if (uiState.isStabilized)
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                    else
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (uiState.isStabilized)
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                    else
+                                        Color.Transparent,
+                                    shape = RoundedCornerShape(20.dp)
+                                )
+                                .clickable { viewModel.toggleStabilization() }
                                 .padding(14.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -620,23 +502,218 @@ fun SensorScreen(
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Sync,
-                                    contentDescription = "Toggle Units",
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = "Stabilization Filter",
+                                    tint = if (uiState.isStabilized)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (uiState.isStabilized) "Filtered: ON" else "Filter: OFF",
+                                    color = if (uiState.isStabilized)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        // Show Graph Toggle Bento Card
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(
+                                    if (uiState.showGraph)
+                                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f)
+                                    else
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (uiState.showGraph)
+                                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
+                                    else
+                                        Color.Transparent,
+                                    shape = RoundedCornerShape(20.dp)
+                                )
+                                .clickable { viewModel.toggleShowGraph() }
+                                .padding(14.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ShowChart,
+                                    contentDescription = "Toggle Graphs",
+                                    tint = if (uiState.showGraph)
+                                        MaterialTheme.colorScheme.secondary
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (uiState.showGraph) "View: Graphs" else "View: Meters",
+                                    color = if (uiState.showGraph)
+                                        MaterialTheme.colorScheme.secondary
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+
+                    // Accessory bento row for Peaks Reset & Unit Switcher
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Reset Peaks Bento Card
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                .clickable { viewModel.resetPeaks() }
+                                .padding(14.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Reset Peaks",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (uiState.useDegreesPerSecond) "Unit: deg/s (°)" else "Unit: rad/s (r)",
+                                    text = "Reset Peaks",
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    maxLines = 1
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        // Toggle Units Bento Card
+                        if (uiState.gyroAvailable) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1.2f)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                    .clickable { viewModel.toggleGyroUnit() }
+                                    .padding(14.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Sync,
+                                        contentDescription = "Toggle Units",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (uiState.useDegreesPerSecond) "Unit: deg/s (°)" else "Unit: rad/s (r)",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Background Monitoring Status Card
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 24.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "BACKGROUND MONITORING",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.2.sp,
+                                        fontSize = 10.sp
+                                    )
+                                )
+                                Text(
+                                    text = "Continuous Sensor & Audio Impact Detection Active",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontSize = 12.sp
+                                    )
                                 )
                             }
                         }
                     }
+                }
+            } else {
+                // Tab 1: HAZARD MAP & DETECTED IMPACTS VIEW
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // ROAD HAZARD MAP SECTION (Leaflet with Esri World Street Map)
+                    HazardMapView(
+                        impacts = uiState.detectedImpacts,
+                        initialLat = uiState.currentLatitude,
+                        initialLng = uiState.currentLongitude,
+                        mapHeight = 380.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // DETECTED IMPACTS SECTION
+                    ImpactListSection(
+                        impacts = uiState.detectedImpacts,
+                        isRecording = uiState.isRecordingImpact,
+                        onClearAll = { viewModel.clearImpacts() },
+                        useDegrees = uiState.useDegreesPerSecond,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
                 }
             }
         }

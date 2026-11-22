@@ -59,7 +59,8 @@ fun HazardMapView(
     impacts: List<ImpactEvent>,
     modifier: Modifier = Modifier,
     initialLat: Double = 28.6139,
-    initialLng: Double = 77.2090
+    initialLng: Double = 77.2090,
+    mapHeight: androidx.compose.ui.unit.Dp = 380.dp
 ) {
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var isMapReady by remember { mutableStateOf(false) }
@@ -164,21 +165,11 @@ fun HazardMapView(
             <script>
                 var map = L.map('map', { zoomControl: false }).setView([$initialLat, $initialLng], 14);
                 
-                // OpenStreetMap official free tiles (100% Free, No API key required)
-                var mainTiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; OpenStreetMap contributors',
+                // Esri World Street Map (100% Free, No API key, No volunteer-server restrictions)
+                var mainTiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: '&copy; Esri, DeLorme, NAVTEQ',
                     maxZoom: 19
-                });
-                
-                mainTiles.on('tileerror', function() {
-                    // Free fallback to Esri World Street Map if network rate limits
-                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-                        attribution: '&copy; Esri',
-                        maxZoom: 18
-                    }).addTo(map);
-                });
-                
-                mainTiles.addTo(map);
+                }).addTo(map);
 
                 L.control.zoom({ position: 'bottomright' }).addTo(map);
 
@@ -305,7 +296,7 @@ fun HazardMapView(
                             letterSpacing = 0.5.sp
                         )
                         Text(
-                            text = "OpenStreetMap / Leaflet View",
+                            text = "Leaflet & Esri World Street Map",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
@@ -422,12 +413,12 @@ fun HazardMapView(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(260.dp)
+                    .height(mapHeight)
                     .clip(RoundedCornerShape(14.dp))
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
             ) {
                 AndroidView(
-                    modifier = Modifier.fillMaxWidth().height(260.dp),
+                    modifier = Modifier.fillMaxWidth().height(mapHeight),
                     factory = { context ->
                         WebView(context).apply {
                             layoutParams = ViewGroup.LayoutParams(
@@ -449,7 +440,7 @@ fun HazardMapView(
                                     isMapReady = true
                                 }
                             }
-                            loadDataWithBaseURL("https://openstreetmap.org", leafletHtml, "text/html", "UTF-8", null)
+                            loadDataWithBaseURL("https://server.arcgisonline.com", leafletHtml, "text/html", "UTF-8", null)
                             webViewRef = this
                         }
                     },
