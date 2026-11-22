@@ -74,12 +74,12 @@ fun HazardMapView(
         <html>
         <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
             <style>
                 * { box-sizing: border-box; }
-                body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #0b1120; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-                #map { width: 100%; height: 100%; background: #0b1120; }
+                body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #1e293b; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+                #map { width: 100%; height: 100%; background: #1e293b; }
                 
                 /* Leaflet controls styling */
                 .leaflet-bar a {
@@ -164,12 +164,21 @@ fun HazardMapView(
             <script>
                 var map = L.map('map', { zoomControl: false }).setView([$initialLat, $initialLng], 14);
                 
-                // Sleek CartoDB Dark Matter tiles
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                    attribution: '&copy; OpenStreetMap &copy; CARTO',
-                    subdomains: 'abcd',
+                // OpenStreetMap official free tiles (100% Free, No API key required)
+                var mainTiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors',
                     maxZoom: 19
-                }).addTo(map);
+                });
+                
+                mainTiles.on('tileerror', function() {
+                    // Free fallback to Esri World Street Map if network rate limits
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                        attribution: '&copy; Esri',
+                        maxZoom: 18
+                    }).addTo(map);
+                });
+                
+                mainTiles.addTo(map);
 
                 L.control.zoom({ position: 'bottomright' }).addTo(map);
 
@@ -431,6 +440,8 @@ fun HazardMapView(
                                 cacheMode = WebSettings.LOAD_DEFAULT
                                 loadWithOverviewMode = true
                                 useWideViewPort = true
+                                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                                userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 RoadPulse/1.0"
                             }
                             webViewClient = object : WebViewClient() {
                                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -438,7 +449,7 @@ fun HazardMapView(
                                     isMapReady = true
                                 }
                             }
-                            loadDataWithBaseURL("https://unpkg.com", leafletHtml, "text/html", "UTF-8", null)
+                            loadDataWithBaseURL("https://openstreetmap.org", leafletHtml, "text/html", "UTF-8", null)
                             webViewRef = this
                         }
                     },
