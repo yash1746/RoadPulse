@@ -2,28 +2,24 @@ package com.example.network
 
 /**
  * Supabase & HTTP Routing API Configuration.
- * 
- * Paste your Supabase credentials here, or specify your custom HTTP routing API URL.
  */
 object SupabaseConfig {
 
     /**
-     * Replace with your Supabase Project URL.
-     * Example: "https://your-project-ref.supabase.co"
+     * Your Supabase Project URL.
      */
-    var SUPABASE_URL: String = ""
+    var SUPABASE_URL: String = "https://xqhqyfmuytyhiqtggwsc.supabase.co"
 
     /**
-     * Replace with your Supabase Anon Public Key (from Project Settings -> API).
-     * Example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+     * Your Supabase Anon / Publishable API Key.
      */
-    var SUPABASE_ANON_KEY: String = ""
+    var SUPABASE_ANON_KEY: String = "sb_publishable_mpZgh9p5ibiY0lyOrI21ng_YK7shZJg"
 
     /**
      * Optional custom HTTP backend routing API URL.
      * Example: "http://10.0.2.2:5000/api/hazards" (Android emulator localhost) or "https://api.yourdomain.com/api/hazards"
      * 
-     * If left blank, HazardSyncManager will send data directly to the Supabase REST endpoint:
+     * If left blank, HazardSyncManager will send data directly to your Supabase REST endpoint:
      * "${SUPABASE_URL}/rest/v1/hazards"
      */
     var CUSTOM_API_URL: String = ""
