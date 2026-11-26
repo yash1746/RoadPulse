@@ -16,6 +16,7 @@ import com.example.model.SensorData
 import com.example.model.SensorUiState
 import com.example.model.ImpactEvent
 import com.example.model.RoadHazardClassifier
+import com.example.network.HazardSyncManager
 import com.example.websocket.SensorWebSocketServer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -420,6 +421,10 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             )
         }
         triggerBeepNotification(classification.label)
+
+        // Asynchronously sync detected hazard to Supabase or HTTP Routing API (non-blocking, fail-safe)
+        HazardSyncManager.uploadHazard(newEvent)
+
         isRecordingPost = false
         activeAccelRecord.clear()
         activeGyroRecord.clear()
