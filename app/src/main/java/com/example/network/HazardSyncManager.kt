@@ -1,5 +1,7 @@
 package com.example.network
 
+import android.content.Context
+import android.location.Geocoder
 import android.util.Log
 import com.example.model.ImpactEvent
 import kotlinx.coroutines.CoroutineScope
@@ -19,12 +21,22 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Manages background asynchronous synchronization of detected hazards (potholes and speed breakers)
- * to Supabase or a custom HTTP Routing API.
+ * directly to Supabase or a custom HTTP Routing API.
  *
- * Designed to be completely non-blocking and fail-safe:
- * - Operates entirely on Dispatchers.IO.
- * - Never throws unhandled exceptions or interrupts UI/sensor tracking.
- * - Silently bypasses sync if credentials are not yet configured or device is offline.
+ * Formatted to match the Supabase `hazards` table schema:
+ * - id (text)
+ * - latitude (float8)
+ * - longitude (float8)
+ * - road_name (text)
+ * - type (text)
+ * - severity (text)
+ * - peak_force (float8)
+ * - confidence (float8)
+ * - consensus_count (int4)
+ * - status (text)
+ * - priority (text)
+ * - reported_at (timestamptz)
+ * - updated_at (timestamptz)
  */
 object HazardSyncManager {
 
@@ -41,14 +53,15 @@ object HazardSyncManager {
     /**
      * Asynchronously uploads an impact event to the database.
      */
-    fun uploadHazard(event: ImpactEvent) {
+    fun uploadHazard(event: ImpactEvent, context: Context? = null) {
         if (!SupabaseConfig.isConfigured) {
-            Log.d(TAG, "Supabase/API not yet configured in SupabaseConfig.kt. Skipping cloud sync.")
+            Log.e(TAG, "Supabase is not configured! Check SUPABASE_URL and SUPABASE_ANON_KEY in SupabaseConfig.kt.")
             return
         }
 
-        // Do not upload normal road telemetry
+        // Do not upload normal road vibration
         if (event.classificationLabel.equals("Normal", ignoreCase = true)) {
+            Log.d(TAG, "Suppressed normal road reading from upload.")
             return
         }
 
@@ -73,17 +86,38 @@ object HazardSyncManager {
                     else -> "P3"
                 }
 
-                val isoDate = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+                val isoDate = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
                     timeZone = TimeZone.getTimeZone("UTC")
                 }.format(Date(event.timestamp))
 
-                val roadNameFallback = String.format(Locale.US, "RoadPulse GPS (%.4f, %.4f)", event.latitude, event.longitude)
+                // Reverse geocode to get the actual street/road name from real GPS coordinates
+                var roadName = String.format(Locale.US, "RoadPulse GPS (%.4f, %.4f)", event.latitude, event.longitude)
+                if (context != null && (event.latitude != 0.0 || event.longitude != 0.0)) {
+                    try {
+                        val geocoder = Geocoder(context, Locale.getDefault())
+                        val addresses = geocoder.getFromLocation(event.latitude, event.longitude, 1)
+                        if (!addresses.isNullOrEmpty()) {
+                            val addr = addresses[0]
+                            val street = addr.thoroughfare ?: addr.subLocality ?: addr.locality ?: ""
+                            val city = addr.locality ?: addr.adminArea ?: ""
+                            if (street.isNotBlank() && city.isNotBlank()) {
+                                roadName = "$street, $city"
+                            } else if (street.isNotBlank()) {
+                                roadName = street
+                            } else if (!addr.featureName.isNullOrBlank()) {
+                                roadName = "${addr.featureName}, ${addr.adminArea ?: ""}".trimEnd(',', ' ')
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.d(TAG, "Geocoder reverse-lookup skipped: ${e.message}")
+                    }
+                }
 
                 val jsonBody = JSONObject().apply {
                     put("id", event.id)
                     put("latitude", event.latitude)
                     put("longitude", event.longitude)
-                    put("road_name", roadNameFallback)
+                    put("road_name", roadName)
                     put("type", formattedType)
                     put("severity", severity)
                     put("peak_force", event.peakMagnitude.toDouble())
@@ -115,17 +149,19 @@ object HazardSyncManager {
                         .build()
                 }
 
+                Log.i(TAG, "Sending hazard ${event.id} ($formattedType) to Supabase: $jsonBody")
+
                 httpClient.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
-                        Log.i(TAG, "Hazard ${event.id} ($formattedType) successfully uploaded to database. HTTP ${response.code}")
+                        Log.i(TAG, "SUCCESS! Hazard ${event.id} ($formattedType) successfully uploaded to Supabase. HTTP ${response.code}")
                     } else {
                         val errorBody = response.body?.string() ?: ""
-                        Log.w(TAG, "Cloud sync returned HTTP ${response.code}: $errorBody")
+                        Log.e(TAG, "FAILED to upload hazard to Supabase: HTTP ${response.code} - $errorBody")
                     }
                 }
             } catch (e: Exception) {
                 // Fail-safe: log warning without crashing or interrupting the app
-                Log.w(TAG, "Failed to upload hazard to database: ${e.message}")
+                Log.e(TAG, "Exception during hazard upload to Supabase: ${e.message}", e)
             }
         }
     }

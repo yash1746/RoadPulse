@@ -70,6 +70,72 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
                 isModelLoaded = classifier.isTfLiteLoaded
             )
         }
+        refreshLocation()
+    }
+
+    private var hasRealGpsFix = false
+
+    private val locationListener = object : android.location.LocationListener {
+        override fun onLocationChanged(location: android.location.Location) {
+            lastKnownLat = location.latitude
+            lastKnownLng = location.longitude
+            hasRealGpsFix = true
+            _uiState.update { it.copy(currentLatitude = location.latitude, currentLongitude = location.longitude) }
+            android.util.Log.d("SensorViewModel", "Real GPS fix acquired: ${location.latitude}, ${location.longitude}")
+        }
+        @Deprecated("Deprecated in Java")
+        override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {}
+        override fun onProviderEnabled(provider: String) {}
+        override fun onProviderDisabled(provider: String) {}
+    }
+
+    fun refreshLocation() {
+        try {
+            val locationManager = getApplication<Application>().getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager
+            if (locationManager != null) {
+                val hasFine = androidx.core.content.ContextCompat.checkSelfPermission(
+                    getApplication(), android.Manifest.permission.ACCESS_FINE_LOCATION
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                val hasCoarse = androidx.core.content.ContextCompat.checkSelfPermission(
+                    getApplication(), android.Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+                if (hasFine || hasCoarse) {
+                    val lastGps = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+                    val lastNet = locationManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
+                    val lastPass = locationManager.getLastKnownLocation(android.location.LocationManager.PASSIVE_PROVIDER)
+                    val best = lastGps ?: lastNet ?: lastPass
+                    if (best != null) {
+                        lastKnownLat = best.latitude
+                        lastKnownLng = best.longitude
+                        hasRealGpsFix = true
+                        _uiState.update { it.copy(currentLatitude = best.latitude, currentLongitude = best.longitude) }
+                        android.util.Log.d("SensorViewModel", "Initial best location: ${best.latitude}, ${best.longitude}")
+                    }
+
+                    if (locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)) {
+                        locationManager.requestLocationUpdates(
+                            android.location.LocationManager.GPS_PROVIDER,
+                            2000L,
+                            1f,
+                            locationListener,
+                            android.os.Looper.getMainLooper()
+                        )
+                    }
+                    if (locationManager.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)) {
+                        locationManager.requestLocationUpdates(
+                            android.location.LocationManager.NETWORK_PROVIDER,
+                            2000L,
+                            1f,
+                            locationListener,
+                            android.os.Looper.getMainLooper()
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("SensorViewModel", "Location listener setup error: ${e.message}")
+        }
     }
 
     fun setSensorSource(source: String) {
@@ -129,6 +195,7 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
     }
 
     fun startListening() {
+        refreshLocation()
         if (_uiState.value.isListening) return
 
         if (_uiState.value.sensorSource == "WebSocket Simulator") {
@@ -276,6 +343,16 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
                 activeGyroRecord.addAll(rollingGyro)
 
                 _uiState.update { it.copy(isRecordingImpact = true) }
+
+                // Auto-finalize fallback timer in case simulation stream pauses or finishes early
+                viewModelScope.launch {
+                    delay(2100)
+                    synchronized(this@SensorViewModel) {
+                        if (isRecordingPost) {
+                            finalizeImpactEvent()
+                        }
+                    }
+                }
             }
 
             if (isRecordingPost) {
@@ -363,9 +440,11 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
                 if (hasFine || hasCoarse) {
                     val loc = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
                         ?: locationManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
+                        ?: locationManager.getLastKnownLocation(android.location.LocationManager.PASSIVE_PROVIDER)
                     if (loc != null) {
                         lastKnownLat = loc.latitude
                         lastKnownLng = loc.longitude
+                        hasRealGpsFix = true
                         _uiState.update { it.copy(currentLatitude = loc.latitude, currentLongitude = loc.longitude) }
                         return Pair(loc.latitude, loc.longitude)
                     }
@@ -375,7 +454,12 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             // Fallback gracefully if location service is not available or permission not yet granted
         }
 
-        // Advance simulated route ~45-80 meters forward along trajectory per impact
+        // If real GPS fix was previously acquired, return the real coordinates!
+        if (hasRealGpsFix) {
+            return Pair(lastKnownLat, lastKnownLng)
+        }
+
+        // Advance simulated route ~45-80 meters forward along trajectory per impact if real GPS is not yet acquired
         val distanceDegrees = 0.00045 + (Math.random() * 0.00025)
         simHeadingAngle += (Math.random() - 0.5) * 0.35
         lastKnownLat += distanceDegrees * kotlin.math.cos(simHeadingAngle)
@@ -388,8 +472,21 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
     private fun finalizeImpactEvent() {
         val classification = classifier.classify(activeAccelRecord, activeGyroRecord)
         
-        // Suppress any events classified as Normal Road to prevent false triggers
-        if (classification.label == "Normal") {
+        // Effective label resolution: if a major spike occurred during event, NEVER silently discard it!
+        val effectiveLabel = if (classification.label == "Normal") {
+            if (peakMagnitudeDuringEvent >= 22.0f) {
+                "Pothole"
+            } else if (peakMagnitudeDuringEvent >= 13.0f) {
+                "Speed Breaker"
+            } else {
+                "Normal"
+            }
+        } else {
+            classification.label
+        }
+
+        // Suppress ONLY if truly normal road vibration (no spike)
+        if (effectiveLabel == "Normal") {
             isRecordingPost = false
             activeAccelRecord.clear()
             activeGyroRecord.clear()
@@ -408,9 +505,9 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
             peakMagnitude = peakMagnitudeDuringEvent,
             accelData = ArrayList(activeAccelRecord),
             gyroData = ArrayList(activeGyroRecord),
-            classificationLabel = classification.label,
-            classificationConfidence = classification.confidence,
-            isHeuristic = classification.isHeuristic,
+            classificationLabel = effectiveLabel,
+            classificationConfidence = if (classification.confidence > 0.5f) classification.confidence else 0.88f,
+            isHeuristic = classification.isHeuristic || classification.label == "Normal",
             latitude = lat,
             longitude = lng
         )
@@ -420,10 +517,10 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
                 isRecordingImpact = false
             )
         }
-        triggerBeepNotification(classification.label)
+        triggerBeepNotification(effectiveLabel)
 
         // Asynchronously sync detected hazard to Supabase or HTTP Routing API (non-blocking, fail-safe)
-        HazardSyncManager.uploadHazard(newEvent)
+        HazardSyncManager.uploadHazard(newEvent, getApplication())
 
         isRecordingPost = false
         activeAccelRecord.clear()
@@ -524,6 +621,16 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
                         activeGyroRecord.addAll(rollingGyro)
 
                         _uiState.update { it.copy(isRecordingImpact = true) }
+
+                        // Auto-finalize fallback timer
+                        viewModelScope.launch {
+                            delay(2100)
+                            synchronized(this@SensorViewModel) {
+                                if (isRecordingPost) {
+                                    finalizeImpactEvent()
+                                }
+                            }
+                        }
                     }
 
                     if (isRecordingPost) {
