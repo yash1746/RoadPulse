@@ -154,6 +154,16 @@ object HazardSyncManager {
                 httpClient.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
                         Log.i(TAG, "SUCCESS! Hazard ${event.id} ($formattedType) successfully uploaded to Supabase. HTTP ${response.code}")
+                    } else if (response.code == 409) {
+                        // ID conflict: retry once with unique randomized suffix
+                        val fallbackId = "${event.id}-${(10..99).random()}"
+                        jsonBody.put("id", fallbackId)
+                        val retryRequest = request.newBuilder()
+                            .post(jsonBody.toString().toRequestBody(JSON_MEDIA_TYPE))
+                            .build()
+                        httpClient.newCall(retryRequest).execute().use { retryResp ->
+                            Log.i(TAG, "Resolved ID conflict: Hazard $fallbackId uploaded with HTTP ${retryResp.code}")
+                        }
                     } else {
                         val errorBody = response.body?.string() ?: ""
                         Log.e(TAG, "FAILED to upload hazard to Supabase: HTTP ${response.code} - $errorBody")

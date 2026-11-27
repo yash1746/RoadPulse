@@ -469,6 +469,13 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
         return Pair(lastKnownLat, lastKnownLng)
     }
 
+    private fun generateStructuredHazardId(): String {
+        val prefs = getApplication<Application>().getSharedPreferences("roadpulse_hazard_prefs", Context.MODE_PRIVATE)
+        val nextSeq = prefs.getInt("hazard_seq_id", 106) + 1
+        prefs.edit().putInt("hazard_seq_id", nextSeq).apply()
+        return "HAZ-$nextSeq"
+    }
+
     private fun finalizeImpactEvent() {
         val classification = classifier.classify(activeAccelRecord, activeGyroRecord)
         
@@ -499,8 +506,9 @@ class SensorViewModel(application: Application) : AndroidViewModel(application),
         }
 
         val (lat, lng) = getCurrentLocationForImpact()
+        val structuredId = generateStructuredHazardId()
         val newEvent = com.example.model.ImpactEvent(
-            id = java.util.UUID.randomUUID().toString(),
+            id = structuredId,
             timestamp = System.currentTimeMillis(),
             peakMagnitude = peakMagnitudeDuringEvent,
             accelData = ArrayList(activeAccelRecord),
